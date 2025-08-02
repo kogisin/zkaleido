@@ -1,3 +1,5 @@
+use std::fmt::{Debug, Display};
+
 use thiserror::Error;
 
 use crate::{ProofType, ZkVm};
@@ -11,6 +13,10 @@ pub enum ZkVmError {
     /// This error is returned when execution fails for any reason.
     #[error("Execution failed: {0}")]
     ExecutionError(String),
+
+    /// Network (or RPC) error that can occur while using prover network.
+    #[error("Network error: {0}")]
+    NetworkRetryableError(String),
 
     /// This error is returned when proof generation fails for any reason.
     #[error("Proof generation failed: {0}")]
@@ -112,6 +118,19 @@ pub enum ZkVmVerifyingKeyError {
     InvalidVerifyingKeySize,
 }
 
+/// A generic “expected vs actual” error.
+#[derive(Debug, Error)]
+#[error("expected {expected}, found {actual}")]
+pub struct Mismatched<T>
+where
+    T: Debug + Display,
+{
+    /// The value that was expected.
+    pub expected: T,
+    /// The value that was actually encountered.
+    pub actual: T,
+}
+
 /// Errors related to proof usage in ZkVM.
 #[derive(Debug, Error)]
 pub enum ZkVmProofError {
@@ -124,8 +143,12 @@ pub enum ZkVmProofError {
     InvalidProofType(ProofType),
 
     /// The ZkVM instance provided does not match the expected one.
-    #[error("Invalid ZkVm: expected {0:?}, found {1:?}")]
-    InvalidZkVm(ZkVm, ZkVm),
+    #[error(transparent)]
+    ZkVmMismatch(#[from] Mismatched<ZkVm>),
+
+    /// The ZkVM version provided does not match the expected one.
+    #[error(transparent)]
+    VersionMismatch(#[from] Mismatched<String>),
 }
 
 /// Errors that can occur when attempting to parse or handle a verification key.

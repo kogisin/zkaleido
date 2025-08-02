@@ -1,5 +1,8 @@
 use sp1_sdk::{SP1Proof, SP1ProofWithPublicValues, SP1PublicValues};
-use zkaleido::{Proof, ProofReceipt, PublicValues, ZkVmProofError};
+use zkaleido::{
+    Mismatched, Proof, ProofMetadata, ProofReceipt, ProofReceiptWithMetadata, PublicValues, ZkVm,
+    ZkVmProofError,
+};
 
 #[derive(Debug, Clone)]
 pub struct SP1ProofReceipt(SP1ProofWithPublicValues);
@@ -22,30 +25,47 @@ impl AsRef<SP1ProofWithPublicValues> for SP1ProofReceipt {
     }
 }
 
-impl TryFrom<ProofReceipt> for SP1ProofReceipt {
+impl TryFrom<ProofReceiptWithMetadata> for SP1ProofReceipt {
     type Error = ZkVmProofError;
-    fn try_from(value: ProofReceipt) -> Result<Self, Self::Error> {
+    fn try_from(value: ProofReceiptWithMetadata) -> Result<Self, Self::Error> {
         SP1ProofReceipt::try_from(&value)
     }
 }
 
-impl TryFrom<&ProofReceipt> for SP1ProofReceipt {
+impl TryFrom<&ProofReceiptWithMetadata> for SP1ProofReceipt {
     type Error = ZkVmProofError;
-    fn try_from(value: &ProofReceipt) -> Result<Self, Self::Error> {
-        let public_values = SP1PublicValues::from(value.public_values().as_bytes());
-        let proof: SP1Proof = bincode::deserialize(value.proof().as_bytes())
-            .map_err(|e| ZkVmProofError::DataFormat(e.into()))?;
+    fn try_from(value: &ProofReceiptWithMetadata) -> Result<Self, Self::Error> {
+        let zkvm_in_proof = value.metadata().zkvm();
+        if zkvm_in_proof != &ZkVm::SP1 {
+            Err(Mismatched {
+                expected: ZkVm::SP1,
+                actual: *zkvm_in_proof,
+            })?
+        }
+
+        let version_in_proof = value.metadata().version().to_string();
         let sp1_version = sp1_sdk::SP1_CIRCUIT_VERSION.to_string();
+        if version_in_proof != sp1_version {
+            Err(Mismatched {
+                expected: sp1_version.clone(),
+                actual: version_in_proof,
+            })?
+        }
+
+        let public_values = SP1PublicValues::from(value.receipt().public_values().as_bytes());
+        let proof: SP1Proof = bincode::deserialize(value.receipt().proof().as_bytes())
+            .map_err(|e| ZkVmProofError::DataFormat(e.into()))?;
         let proof_receipt = SP1ProofWithPublicValues {
             proof,
             public_values,
             sp1_version,
+            tee_proof: None,
         };
         Ok(SP1ProofReceipt(proof_receipt))
     }
 }
 
-impl TryFrom<SP1ProofReceipt> for ProofReceipt {
+impl TryFrom<SP1ProofReceipt> for ProofReceiptWithMetadata {
     type Error = ZkVmProofError;
     fn try_from(value: SP1ProofReceipt) -> Result<Self, Self::Error> {
         let sp1_receipt = value.as_ref();
@@ -60,7 +80,11 @@ impl TryFrom<SP1ProofReceipt> for ProofReceipt {
 
         let proof = Proof::new(proof_bytes);
         let public_values = PublicValues::new(sp1_receipt.public_values.to_vec());
+        let receipt = ProofReceipt::new(proof, public_values);
 
-        Ok(ProofReceipt::new(proof, public_values))
+        let sp1_version = sp1_sdk::SP1_CIRCUIT_VERSION.to_string();
+        let metadata = ProofMetadata::new(ZkVm::SP1, sp1_version);
+
+        Ok(ProofReceiptWithMetadata::new(receipt, metadata))
     }
 }

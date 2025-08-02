@@ -11,6 +11,8 @@ fibonacci.workspace = true
 fibonacci-composition.workspace = true
 sha2-chain.workspace = true
 schnorr-sig-verify.workspace = true
+groth16-verify-sp1.workspace = true
+groth16-verify-risc0.workspace = true
 
 # sp1
 zkaleido-sp1-host = { path = "../adapters/sp1/host", optional = true }
@@ -27,7 +29,7 @@ num-format = "0.4.4"
 reqwest = { version = "0.12.4", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.94"
-sp1-sdk = "4.1.3"
+sp1-sdk = "5.0.0"
 time = "0.3.26"
 tokio = { version = "1.39.0", features = ["full"] }
 

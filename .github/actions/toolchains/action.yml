@@ -7,7 +7,7 @@ runs:
   using: "composite"
   steps:
     - name: Set up Clang
-      uses: egor-tensin/setup-clang@v1
+      uses: egor-tensin/setup-clang@ef434b41eb33a70396fb336b1bae39c76d740c3d # v1
       with:
         version: latest
         platform: x64
@@ -24,7 +24,7 @@ runs:
       run: |
         curl -fsSL --proto '=https' --tlsv1.2 https://risczero.com/install | bash
         export PATH=~/.risc0/bin:$PATH
-        rzup install rust 1.81.0
+        rzup install rust 1.85.0
         rzup install cpp 2024.1.5
-        rzup install r0vm 2.0.0
-        rzup install cargo-risczero 2.0.0
+        rzup install r0vm 2.0.2
+        rzup install cargo-risczero 2.0.2

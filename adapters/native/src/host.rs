@@ -1,8 +1,9 @@
-use std::{fmt, sync::Arc};
+use std::{env, fmt, sync::Arc};
 
 use zkaleido::{
-    Proof, ProofReceipt, ProofType, PublicValues, VerifyingKey, VerifyingKeyCommitment, ZkVmError,
-    ZkVmExecutor, ZkVmHost, ZkVmProver, ZkVmResult, ZkVmVerifier,
+    Proof, ProofMetadata, ProofReceipt, ProofReceiptWithMetadata, ProofType, PublicValues,
+    VerifyingKey, VerifyingKeyCommitment, ZkVm, ZkVmError, ZkVmExecutor, ZkVmHost,
+    ZkVmOutputExtractor, ZkVmProver, ZkVmResult, ZkVmTypedVerifier, ZkVmVkProvider,
 };
 
 use crate::{env::NativeMachine, input::NativeMachineInputBuilder, proof::NativeProofReceipt};
@@ -39,6 +40,8 @@ impl ZkVmExecutor for NativeHost {
     fn get_elf(&self) -> &[u8] {
         &[]
     }
+
+    fn save_trace(&self, _trace_name: &str) {}
 }
 
 impl ZkVmProver for NativeHost {
@@ -51,12 +54,25 @@ impl ZkVmProver for NativeHost {
     ) -> ZkVmResult<NativeProofReceipt> {
         let public_values = self.execute(native_machine)?;
         let proof = Proof::default();
-        Ok(ProofReceipt::new(proof, public_values).try_into()?)
+        let receipt = ProofReceipt::new(proof, public_values);
+
+        let version: &str = env!("CARGO_PKG_VERSION");
+        let metadata = ProofMetadata::new(ZkVm::Native, version.to_string());
+
+        let receipt = ProofReceiptWithMetadata::new(receipt, metadata);
+        Ok(receipt.try_into()?)
     }
 }
 
-impl ZkVmVerifier for NativeHost {
+impl ZkVmTypedVerifier for NativeHost {
     type ZkVmProofReceipt = NativeProofReceipt;
+
+    fn verify_inner(&self, _proof: &NativeProofReceipt) -> ZkVmResult<()> {
+        Ok(())
+    }
+}
+
+impl ZkVmVkProvider for NativeHost {
     fn vk(&self) -> VerifyingKey {
         VerifyingKey::default()
     }
@@ -64,17 +80,15 @@ impl ZkVmVerifier for NativeHost {
     fn vk_commitment(&self) -> VerifyingKeyCommitment {
         VerifyingKeyCommitment::new([0u32; 8])
     }
+}
 
+impl ZkVmOutputExtractor for NativeHost {
     fn extract_serde_public_output<T: serde::Serialize + serde::de::DeserializeOwned>(
         public_values_raw: &PublicValues,
     ) -> ZkVmResult<T> {
         let public_params: T = bincode::deserialize(public_values_raw.as_bytes())
             .map_err(|e| ZkVmError::OutputExtractionError { source: e.into() })?;
         Ok(public_params)
-    }
-
-    fn verify_inner(&self, _proof: &NativeProofReceipt) -> ZkVmResult<()> {
-        Ok(())
     }
 }
 
